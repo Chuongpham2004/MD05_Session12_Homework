@@ -26,7 +26,7 @@ server {
 
 ## 3. Cấu hình sau khi cập nhật
 
-File [`nginx/export.conf`](nginx/export.conf):
+File [`export.conf`](export.conf):
 
 ```nginx
 server {

@@ -46,7 +46,7 @@ Thêm dấu `;` vào cuối dòng 6:
 +        proxy_pass http://localhost:8080;
 ```
 
-Cấu hình sau khi sửa (file [`nginx/app.conf`](nginx/app.conf)):
+Cấu hình sau khi sửa (file [`app.conf`](app.conf)):
 
 ```nginx
 server {
