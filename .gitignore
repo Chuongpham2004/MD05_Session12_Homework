@@ -35,3 +35,6 @@ out/
 
 ### VS Code ###
 .vscode/
+
+### Nginx SSL (self-signed, local test only) ###
+nginx/**/ssl/
