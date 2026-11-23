@@ -134,7 +134,84 @@ curl -I --max-time 5 http://<IP-public>:8080
 # curl: (7) Failed to connect ... Connection refused   <- bị chặn ✅
 ```
 
-## 6. Cách khác (tham khảo)
+## 6. Kết quả kiểm thử thực tế trên VPS Ubuntu
+
+Thực hiện trên VPS Linux (user thường, có quyền sudo), dùng backend giả `hashicorp/http-echo` thay cho
+`my-spring-boot-app`. UFW đang bật với chính sách mặc định chặn kết nối vào, chỉ cho phép
+22, 80, 443, **không** cho phép 8080. IP public, tên user và hostname đã được che trong ảnh.
+
+```yaml
+# ~/bai4/docker-compose.yml dùng để test
+services:
+  backend:
+    image: hashicorp/http-echo
+    command: ["-listen=:8080", "-text=Hello from backend"]
+    ports:
+      - "8080:8080"            # trước khi sửa -> sau đó đổi thành "127.0.0.1:8080:8080"
+```
+
+### 6.1. Trước khi sửa (`"8080:8080"`): Docker vượt qua UFW
+
+`docker ps` hiện `0.0.0.0:8080->8080/tcp, [::]:8080->8080/tcp`: Docker mở cổng trên mọi interface
+(IPv4 và IPv6). Dù UFW **không** cho phép 8080, máy bên ngoài vẫn gọi được:
+
+![Trước khi sửa: truy cập từ ngoài vẫn thành công](images/1-before-external-access.png)
+
+```
+PS> curl.exe -i --max-time 5 http://<IP-VPS>:8080
+HTTP/1.1 200 OK
+X-App-Name: http-echo
+...
+Hello from backend
+```
+
+### 6.2. Sau khi sửa (`"127.0.0.1:8080:8080"`): trên VPS
+
+![Sau khi sửa: kiểm tra trên VPS](images/2-vps-after-fix.png)
+
+```
+$ docker ps
+PORTS: 5678/tcp, 127.0.0.1:8080->8080/tcp
+
+$ sudo ss -tlnp | grep 8080
+LISTEN 0  4096  127.0.0.1:8080  0.0.0.0:*  users:(("docker-proxy",pid=...,fd=8))
+
+$ sudo iptables -t nat -L DOCKER -n
+target  prot opt source      destination
+DNAT    tcp  --  0.0.0.0/0   127.0.0.1    tcp dpt:8080 to:172.18.0.2:8080
+
+$ curl -i http://127.0.0.1:8080
+HTTP/1.1 200 OK
+...
+Hello from backend
+```
+
+- Cổng 8080 chỉ còn lắng nghe ở `127.0.0.1`, và không còn bind trên IPv6 `[::]`.
+- Rule DNAT chỉ áp dụng cho đích `127.0.0.1`.
+- Trên VPS (vị trí của Nginx) vẫn gọi backend bình thường.
+
+### 6.3. Sau khi sửa: truy cập từ bên ngoài bị chặn
+
+![Sau khi sửa: truy cập từ ngoài bị chặn](images/3-after-external-blocked.png)
+
+```
+PS> curl.exe -i --max-time 5 http://<IP-VPS>:8080
+curl: (28) Connection timed out after 5009 milliseconds
+```
+
+Kết quả là **timeout**: không còn rule DNAT nào khớp với IP public, nên gói tin đi vào chain
+`INPUT`. Tại đó chính sách mặc định của UFW (chặn kết nối vào) bỏ gói tin đi mà không trả lời.
+Tức là **UFW đã có tác dụng trở lại** với cổng 8080.
+
+### 6.4. Tổng kết
+
+| | `"8080:8080"` | `"127.0.0.1:8080:8080"` |
+|---|---|---|
+| Docker lắng nghe | `0.0.0.0:8080`, `[::]:8080` | `127.0.0.1:8080` |
+| Truy cập từ internet | ✅ `200 OK` (vượt qua UFW) | ❌ timeout (bị chặn) |
+| Truy cập từ chính VPS (Nginx) | ✅ | ✅ `200 OK` |
+
+## 7. Cách khác (tham khảo)
 
 | Cách | Mô tả |
 |------|-------|
