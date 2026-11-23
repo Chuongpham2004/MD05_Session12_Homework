@@ -1,0 +1,7 @@
+services:
+  backend:
+    image: my-spring-boot-app:latest
+    ports:
+      # Chỉ publish vào loopback: Nginx trên cùng máy vẫn gọi được 127.0.0.1:8080,
+      # còn từ internet (IP public) thì không có rule nào để vào được.
+      - "127.0.0.1:8080:8080"
